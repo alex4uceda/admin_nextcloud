@@ -1,0 +1,14 @@
+# --- Runtime / volúmenes (NO versionar) ---
+db/
+redis/
+nextcloud/
+nextcloud_data/
+
+# --- Secretos ---
+.env
+
+# --- Otros comunes ---
+*.log
+*.tmp
+*.swp
+.DS_Store
