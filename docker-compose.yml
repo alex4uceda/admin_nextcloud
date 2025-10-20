@@ -84,20 +84,49 @@ services:
     networks:
       - proxy_net
 
+  #______________________________
+  #   Reverse Proxy Service
   nginx-proxy:
-    image: nginx:1.27-alpine
+    build:
+      context: ./proxy-nginx
+      dockerfile: DockerFile
     container_name: nginx-proxy
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./proxy-inverso/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./proxy-inverso/conf.d:/etc/nginx/conf.d:ro
-      - ./proxy-inverso/logs:/var/log/nginx
+      - ./proxy-nginx:/etc/nginx/conf.d
+    depends_on:
+      - letsencrypt
+      - nextcloud
     networks:
       - proxy_net
 
 
+  letsencrypt:
+    image: linuxserver/swag:latest
+    container_name: swag-letsencrypt
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/El_Salvador
+      - URL=nextcloud.net
+      - SUBDOMAINS=wildcard
+      - VALIDATION=dns
+      - DNSPLUGIN=cloudflare # Cambia esto si usas otro proveedor DNS
+      - EMAIL=admin@nextcloud.net
+      - EXTRA_DOMAINS=nextcloud.es,nextcloud.com
+    volumes:
+      - ./proxy-nginx/certs:/config/etc/letsencrypt/live
+      - ./proxy-nginx/private:/config/etc/letsencrypt/keys
+    networks:
+      - proxy_net
+
+  
 
 networks:
   proxy_net:
