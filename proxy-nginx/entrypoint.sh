@@ -1,13 +1,18 @@
-# /docker-entrypoint.d/99-generate-cert.sh
+#!/bin/sh
+set -eu
+
 CERT_DIR="/etc/nginx/certs/nextcloud.net"
-if [[ -f "$CERT_DIR/fullchain.pem" && -f "$CERT_DIR/privkey.pem" ]]; then
-  echo "✅ [entrypoint] Certs montados; no genero."
+CERT="$CERT_DIR/fullchain.pem"
+KEY="$CERT_DIR/privkey.pem"
+
+echo "🔐 [entrypoint] Verificando certificados en $CERT_DIR ..."
+if [ -f "$CERT" ] && [ -f "$KEY" ]; then
+  echo "✅ [entrypoint] Certificados existentes detectados. No se generará nada."
   exit 0
 fi
-# (solo si faltan, genera en ese MISMO path)
-mkdir -p "$CERT_DIR"
-openssl req -x509 -nodes -newkey rsa:4096 -days 825 \
-  -keyout "$CERT_DIR/privkey.pem" \
-  -out    "$CERT_DIR/fullchain.pem" \
-  -subj "/CN=*.nextcloud.net" \
-  -addext "subjectAltName=DNS:nextcloud.net,DNS:*.nextcloud.net"
+
+echo "❌ [entrypoint] No hay certificados en $CERT_DIR."
+echo "   Este contenedor espera que montes los .pem (solo lectura) desde SWAG:"
+echo "   ./swag-config/etc/letsencrypt/live/nextcloud.net -> $CERT_DIR:ro"
+echo "   Aborto para evitar escribir sobre un volumen de solo lectura."
+exit 1
