@@ -94,9 +94,10 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
+      #- "443:443"
     volumes:
-      - ./proxy-nginx:/etc/nginx/conf.d
+      - ./proxy-nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./swag-config/etc/letsencrypt/live/nextcloud.net:/etc/nginx/certs/nextcloud.net:ro
     depends_on:
       - letsencrypt
       - nextcloud
@@ -105,7 +106,7 @@ services:
 
 
   letsencrypt:
-    image: linuxserver/swag:latest
+    image: lscr.io/linuxserver/swag:latest
     container_name: swag-letsencrypt
     restart: unless-stopped
     cap_add:
@@ -115,18 +116,20 @@ services:
       - PGID=1000
       - TZ=America/El_Salvador
       - URL=nextcloud.net
-      - SUBDOMAINS=wildcard
-      - VALIDATION=dns
-      - DNSPLUGIN=cloudflare # Cambia esto si usas otro proveedor DNS
+      - SUBDOMAINS=wildcard           # SWAG usa esta ruta: /config/etc/letsencrypt/live/nextcloud.net/
+      - VALIDATION=dns                # se ignora si ya existen los .pem en la ruta esperada
+      - DNSPLUGIN=cloudflare
       - EMAIL=admin@nextcloud.net
-      - EXTRA_DOMAINS=nextcloud.es,nextcloud.com
+      # opcional: evita ruido en logs de renovación fallida
+      - STAGING=true                  # certificados de prueba (si en algún momento intentara ACME)
     volumes:
-      - ./proxy-nginx/certs:/config/etc/letsencrypt/live
-      - ./proxy-nginx/private:/config/etc/letsencrypt/keys
+      - ./swag-config:/config         # <— MONTA TODO /config
     networks:
       - proxy_net
+    ports:
+      - "443:443"                     # recuerda exponer 443 si será reverse proxy
+      # - "80:80"       
 
-  
 
 networks:
   proxy_net:
