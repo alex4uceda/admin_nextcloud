@@ -1,0 +1,19 @@
+$TTL 3600
+@   IN  SOA ns1.nextcloud.net. admin.nextcloud.net. (
+        2025102801 ; serial: AAAAMMDDnn
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400      ; minimum
+)
+    IN  NS  ns1.nextcloud.net.
+
+; Servidor autoritativo de la zona
+ns1 IN  A   127.0.0.1
+
+; Dominio principal apunta a localhost (máquina anfitrión)
+@    IN  A     127.0.0.1
+
+; Subdominios también a localhost si es necesario
+www  IN  CNAME @
+*    IN  CNAME @  ; wildcard para cualquier subdominio

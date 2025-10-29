@@ -1,0 +1,25 @@
+$TTL 3600
+@   IN  SOA ns1.example.local. admin.example.local. (
+        2025102001 ; serial: AAAAMMDDnn
+        3600       ; refresh
+        1800       ; retry
+        604800     ; expire
+        86400      ; minimum
+)
+    IN  NS  ns1.example.local.
+
+; Servidor autoritativo de la zona
+ns1 IN  A   10.10.0.2
+
+; Registros A/CNAME comunes
+@    IN  A     10.10.0.10
+www  IN  CNAME @
+api  IN  A     10.10.0.20
+db   IN  A     10.10.0.30
+
+; Mail
+mx   IN  A     10.10.0.40
+@    IN  MX 10 mx.example.local.
+
+; Texto/clave SPF simple (ajusta a tu realidad)
+@    IN  TXT   "v=spf1 a mx ~all"

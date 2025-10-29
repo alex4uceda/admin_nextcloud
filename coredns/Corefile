@@ -1,0 +1,33 @@
+# Servidor único escuchando en :53
+.:53 {
+    log
+    errors
+    # /health (200 OK) y /ready HTTP dentro del contenedor
+    health
+    ready
+
+    # Cache en memoria (nota: NO persiste entre reinicios)
+    cache 3600
+
+    # Recarga automática cuando cambien Corefile o las zonas
+    reload
+
+    # Métricas en http://localhost:9153/metrics
+    prometheus 0.0.0.0:9153
+
+    # Zonas servidas desde archivos Bind
+    file /zones/example.local.db example.local
+    file /zones/services.dev.db services.dev
+    file /zones/nextcloud.net.db nextcloud.net
+
+    # Reenvío para cualquier otra consulta (resolución recursiva delegada)
+    forward . 1.1.1.1 8.8.8.8 {
+        max_concurrent 1000
+    }
+
+    # (Opcional) Resuelve nombres del propio host
+    # hosts {
+    #   10.0.0.5 nas.local
+    #   fallthrough
+    # }
+}

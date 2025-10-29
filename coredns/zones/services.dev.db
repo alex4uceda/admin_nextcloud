@@ -1,0 +1,23 @@
+$TTL 3600
+@   IN  SOA ns1.services.dev. admin.services.dev. (
+        2025102001
+        3600
+        1800
+        604800
+        86400
+)
+    IN  NS  ns1.services.dev.
+
+ns1     IN  A   10.20.0.2
+@       IN  A   10.20.0.10
+api     IN  A   10.20.0.11
+web     IN  A   10.20.0.12
+grafana IN  A   10.20.0.13
+
+; Ejemplo SRV (servicio Redis en puerto 6379)
+_redis._tcp   IN SRV 0 50 6379 redis.services.dev.
+redis         IN A   10.20.0.21
+
+; Ejemplo SRV para HTTP (balance entre 2 backends)
+_http._tcp    IN SRV 10 60 80 web.services.dev.
+_http._tcp    IN SRV 20 40 80 api.services.dev.

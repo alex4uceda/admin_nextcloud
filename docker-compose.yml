@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - proxy_net
+      - proxy_net_next
 
   redis:
     image: redis:7-alpine
@@ -43,7 +43,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-        - proxy_net
+        - proxy_net_next
 
   nextcloud:
     image: nextcloud:apache
@@ -82,7 +82,7 @@ services:
         a2enconf servername
         exec apache2-foreground
     networks:
-      - proxy_net
+      - proxy_net_next
 
   #______________________________
   #   Reverse Proxy Service
@@ -94,7 +94,7 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      #- "443:443"
+      - "443:443"
     volumes:
       - ./proxy-nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./swag-config/etc/letsencrypt/live/nextcloud.net:/etc/nginx/certs/nextcloud.net:ro
@@ -102,8 +102,23 @@ services:
       #- letsencrypt
       - nextcloud
     networks:
-      - proxy_net
+      - proxy_net_next
 
+  coredns:
+    image: coredns/coredns:1.11.1
+    container_name: coredns
+    restart: unless-stopped
+    # DNS: expone 53 UDP/TCP. Métricas Prometheus en 9153 (opcional)
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "9153:9153/tcp"
+    volumes:
+      - ./coredns/Corefile:/Corefile:ro
+      - ./coredns/zones:/zones:ro
+    command: ["-conf", "/Corefile"]
+    networks:
+      - proxy_net_next
 
   #letsencrypt:
   #  image: lscr.io/linuxserver/swag:latest
@@ -124,11 +139,11 @@ services:
   #  volumes:
   #    - ./swag-config:/config         # <— MONTA TODO /config
   #  networks:
-  #    - proxy_net
+  #    - proxy_net_next
   #  ports:
   #    - "443:443"                     # recuerda exponer 443 si será reverse proxy       
 
 
 networks:
-  proxy_net:
+  proxy_net_next:
     external: true
