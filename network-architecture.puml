@@ -1,0 +1,195 @@
+@startuml Nextcloud Network Architecture
+!theme cerulean-outline
+
+title Nextcloud Infrastructure - Network Architecture & Security
+
+' Define colors
+!define CONTAINER_COLOR #E3F2FD
+!define NETWORK_COLOR #E8F5E8
+!define VOLUME_COLOR #FFF3E0
+!define SECURITY_COLOR #FCE4EC
+!define HOST_COLOR #F3E5F5
+
+' Network boundary
+rectangle "Host System - Linux" as host_system <<HOST_COLOR>> {
+    
+    ' Host network interface
+    interface "Host Network Interface" as host_net
+    component "iptables/firewall" as firewall
+    file "/etc/resolv.conf\n(nameserver 127.0.0.1)" as resolv_conf
+    
+    ' Docker engine
+    rectangle "Docker Engine" as docker_engine {
+        
+        ' External network
+        cloud "proxy_net_next Network\n(Bridge)" as docker_network <<NETWORK_COLOR>> {
+            
+            ' DNS Service
+            rectangle "coredns:latest" as coredns_container <<CONTAINER_COLOR>> {
+                port "53/UDP" as dns_udp
+                port "53/TCP" as dns_tcp  
+                port "9153/TCP" as metrics_port
+                component "CoreDNS Process" as coredns_process
+                
+                folder "Volume Mounts" as coredns_volumes <<VOLUME_COLOR>> {
+                    file "./coredns/Corefile:/Corefile:ro"
+                    file "./coredns/zones:/zones:ro"
+                }
+            }
+            
+            ' Reverse Proxy
+            rectangle "nginx-proxy (Custom Build)" as nginx_container <<CONTAINER_COLOR>> {
+                port "80/TCP" as http_port
+                port "443/TCP" as https_port
+                component "Nginx Process" as nginx_process
+                
+                folder "Volume Mounts" as nginx_volumes <<VOLUME_COLOR>> {
+                    file "./proxy-nginx/nginx.conf:/etc/nginx/nginx.conf:ro"
+                    file "./swag-config/etc/letsencrypt/live/nextcloud.net"
+                }
+            }
+            
+            ' Application Server
+            rectangle "nextcloud:apache" as nextcloud_container <<CONTAINER_COLOR>> {
+                port "80/TCP" as nc_http
+                component "Apache + PHP" as apache_php
+                component "Nextcloud App" as nc_app
+                
+                folder "Volume Mounts" as nc_volumes <<VOLUME_COLOR>> {
+                    file "./nextcloud:/var/www/html"
+                    file "./nextcloud_data:/var/www/html/data"
+                }
+            }
+            
+            ' Database
+            rectangle "mariadb:10.11" as mariadb_container <<CONTAINER_COLOR>> {
+                port "3306/TCP" as mysql_port
+                component "MariaDB Server" as mariadb_process
+                
+                folder "Volume Mounts" as db_volumes <<VOLUME_COLOR>> {
+                    file "./db:/var/lib/mysql"
+                }
+            }
+            
+            ' Cache
+            rectangle "redis:7-alpine" as redis_container <<CONTAINER_COLOR>> {
+                port "6379/TCP" as redis_port
+                component "Redis Server" as redis_process
+                
+                folder "Volume Mounts" as redis_volumes <<VOLUME_COLOR>> {
+                    file "./redis:/data"
+                }
+            }
+        }
+    }
+    
+    ' Host file system
+    folder "Project Directory\n(/home/uceda/Documents/PROYECTO_V1)" as project_root <<VOLUME_COLOR>> {
+        file "docker-compose.yml"
+        file ".env (Environment Variables)"
+        folder "nextcloud/ (App Files)"
+        folder "nextcloud_data/ (User Data)"
+        folder "db/ (Database Files)"
+        folder "redis/ (Cache Data)"
+        folder "swag-config/ (SSL Certificates)"
+        folder "coredns/ (DNS Configuration)"
+    }
+}
+
+' External connections
+cloud "Internet" as internet
+actor "Client/Browser" as client
+
+' Port mappings and connections
+host_net <-> firewall
+firewall --> dns_udp : Port 53/UDP
+firewall --> dns_tcp : Port 53/TCP
+firewall --> http_port : Port 80/TCP
+firewall --> https_port : Port 443/TCP
+firewall --> metrics_port : Port 9153/TCP
+
+' Client connections
+client --> host_net : DNS Query (53)\nHTTP/HTTPS (80/443)
+
+' Internal container communication
+nginx_process --> nc_http : Reverse Proxy
+nc_app --> mysql_port : Database Queries
+nc_app --> redis_port : Cache Operations
+coredns_process --> internet : External DNS Forwarding
+
+' Volume mappings
+project_root --> coredns_volumes
+project_root --> nginx_volumes  
+project_root --> nc_volumes
+project_root --> db_volumes
+project_root --> redis_volumes
+
+' DNS resolution flow
+resolv_conf --> dns_udp : System DNS Queries
+
+' Security boundaries
+note as security_note <<SECURITY_COLOR>>
+    **Security Measures:**
+    
+    **Network Isolation:**
+    - All containers in isolated bridge network
+    - No direct container-to-host communication
+    - Controlled port exposure via Docker
+    
+    **Authentication:**
+    - MariaDB: Root + App user passwords
+    - Redis: Password authentication
+    - Nextcloud: Admin user credentials
+    
+    **SSL/TLS:**
+    - Self-signed wildcard certificates
+    - HTTPS-only access via nginx
+    - Certificate installation for browsers
+    
+    **File Permissions:**
+    - Volume mounts with appropriate permissions
+    - Read-only configuration mounts
+    - Dedicated user/group IDs
+end note
+
+' Performance notes
+note as performance_note <<VOLUME_COLOR>>
+    **Performance Optimizations:**
+    
+    **Caching:**
+    - Redis for Nextcloud sessions/cache
+    - CoreDNS memory cache (3600s TTL)
+    - Nginx proxy caching headers
+    
+    **Database:**
+    - MariaDB optimized for Nextcloud
+    - Dedicated transaction isolation
+    - Binary logging for replication
+    
+    **PHP Configuration:**
+    - Memory limit: 2G
+    - Upload limit: 10G
+    - Apache prefork optimizations
+end note
+
+' Monitoring
+note as monitoring_note <<NETWORK_COLOR>>
+    **Monitoring & Logging:**
+    
+    **Health Checks:**
+    - MariaDB: mysqladmin ping
+    - Redis: redis-cli ping  
+    - CoreDNS: HTTP /health endpoint
+    
+    **Metrics:**
+    - CoreDNS Prometheus metrics (9153)
+    - Container resource usage
+    - Docker Compose service status
+    
+    **Logs:**
+    - Centralized via docker-compose logs
+    - Individual service log access
+    - Error tracking and debugging
+end note
+
+@enduml

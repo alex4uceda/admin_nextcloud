@@ -1,0 +1,176 @@
+@startuml Nextcloud Infrastructure
+!theme cerulean-outline
+!define RECTANGLE_COLOR #E1F5FE
+!define DATABASE_COLOR #FFECB3
+!define NETWORK_COLOR #E8F5E8
+!define SECURITY_COLOR #FCE4EC
+
+title Nextcloud Docker Infrastructure
+
+skinparam rectangle {
+    BackgroundColor RECTANGLE_COLOR
+    BorderColor #0277BD
+}
+
+skinparam database {
+    BackgroundColor DATABASE_COLOR
+    BorderColor #FF8F00
+}
+
+skinparam cloud {
+    BackgroundColor NETWORK_COLOR
+    BorderColor #388E3C
+}
+
+skinparam note {
+    BackgroundColor SECURITY_COLOR
+    BorderColor #C2185B
+}
+
+' External actors
+actor "Usuario/Cliente" as user #lightblue
+cloud "Internet" as internet #lightgreen
+
+' Network layer
+package "Docker Network: proxy_net_next" as network {
+    
+    ' DNS Service
+    rectangle "CoreDNS Container" as coredns {
+        component "CoreDNS Server" as dns_server
+        component "Zone Files" as zones
+        note right of zones
+            - nextcloud.net.db
+            - services.dev.db
+            - example.local.db
+        end note
+    }
+    
+    ' SSL/Proxy layer
+    rectangle "nginx-proxy Container" as nginx {
+        component "Nginx Reverse Proxy" as proxy
+        component "SSL Termination" as ssl
+        folder "SSL Certificates" as certs {
+            file "fullchain.pem"
+            file "privkey.pem"
+            file "cert.pem"
+        }
+    }
+    
+    ' Application layer
+    rectangle "Nextcloud Container" as nc_app {
+        component "Apache Web Server" as apache
+        component "PHP Runtime" as php
+        component "Nextcloud Application" as nextcloud_core
+        folder "App Data" as app_data
+    }
+    
+    ' Database layer
+    database "MariaDB Container" as mariadb {
+        component "MariaDB Server" as db_server
+        storage "Database Files" as db_files
+    }
+    
+    ' Cache layer
+    rectangle "Redis Container" as redis {
+        component "Redis Server" as redis_server
+        storage "Cache Data" as cache_data
+    }
+}
+
+' Host system
+rectangle "Host System (Linux)" as host {
+    file "/etc/resolv.conf" as resolv
+    folder "Project Directory" as project_dir {
+        folder "nextcloud/" as nc_vol
+        folder "nextcloud_data/" as nc_data_vol
+        folder "db/" as db_vol
+        folder "redis/" as redis_vol
+        folder "swag-config/" as ssl_vol
+        folder "coredns/" as dns_vol
+    }
+    component "systemd-resolved" as systemd_dns #lightgray
+}
+
+' Port mappings
+note as ports
+    **Exposed Ports:**
+    - 53/UDP,TCP: DNS queries
+    - 80/TCP: HTTP (redirect)
+    - 443/TCP: HTTPS
+    - 9153/TCP: Metrics
+end note
+
+' SSL Certificate generation
+rectangle "SSL Certificate Generator" as ssl_gen {
+    component "Docker Build" as docker_build
+    component "OpenSSL Scripts" as openssl
+    folder "Temporary Certs" as temp_certs
+}
+
+' Connection flows
+user --> dns_server : DNS Query\n(nextcloud.net)
+dns_server --> user : IP Resolution\n(127.0.0.1)
+
+user --> ssl : HTTPS Request\n(443)
+ssl --> proxy : SSL Termination
+proxy --> apache : HTTP Forward\n(80)
+
+apache --> php : Process PHP
+php --> nextcloud_core : Execute App Logic
+nextcloud_core --> db_server : Database Queries\n(MySQL Protocol)
+nextcloud_core --> redis_server : Cache Operations\n(Redis Protocol)
+
+' DNS forwarding
+dns_server --> internet : Forward External DNS\n(1.1.1.1, 8.8.8.8)
+
+' Volume mounts
+nc_vol --> app_data : Mount
+nc_data_vol --> nextcloud_core : User Data
+db_vol --> db_files : Mount
+redis_vol --> cache_data : Mount
+ssl_vol --> certs : Mount
+dns_vol --> zones : Mount
+
+' SSL certificate flow
+ssl_gen --> temp_certs : Generate Certs
+temp_certs --> certs : Copy Certificates
+
+' System DNS configuration
+resolv --> dns_server : nameserver 127.0.0.1
+systemd_dns -[hidden]-> resolv : Disabled
+
+' Health checks
+note as health
+    **Health Checks:**
+    - MariaDB: mysqladmin ping
+    - Redis: redis-cli ping
+    - CoreDNS: /health endpoint
+end note
+
+' Environment variables
+note as env_vars
+    **Key Environment Variables:**
+    - MYSQL_ROOT_PASSWORD
+    - MYSQL_DATABASE=nextcloud
+    - REDIS_PASSWORD
+    - NEXTCLOUD_ADMIN_USER
+    - NEXTCLOUD_TRUSTED_DOMAINS
+    - TZ=America/El_Salvador
+end note
+
+' Security notes
+note as security
+    **Security Features:**
+    - Self-signed SSL certificates
+    - Redis password protection
+    - Database user isolation
+    - Container network isolation
+    - DNS query logging
+end note
+
+' Legends and positioning
+ports -[hidden]- health
+health -[hidden]- env_vars
+env_vars -[hidden]- security
+
+@enduml

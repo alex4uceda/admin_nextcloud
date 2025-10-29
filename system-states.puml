@@ -1,0 +1,178 @@
+@startuml Nextcloud System States
+!theme cerulean-outline
+
+title Nextcloud Infrastructure - System States & Lifecycle
+
+skinparam state {
+    BackgroundColor #E1F5FE
+    BorderColor #0277BD
+    FontColor #01579B
+}
+
+skinparam note {
+    BackgroundColor #FFF3E0
+    BorderColor #FF8F00
+}
+
+[*] --> SystemClean : Fresh Installation
+
+state SystemClean {
+    SystemClean : systemd-resolved active
+    SystemClean : Port 53 available
+    SystemClean : No Docker containers
+    SystemClean : Default /etc/resolv.conf
+}
+
+SystemClean --> DNSConfiguring : Execute start.sh
+
+state DNSConfiguring {
+    DNSConfiguring : Stop systemd-resolved
+    DNSConfiguring : Backup /etc/resolv.conf
+    DNSConfiguring : Update DNS to 127.0.0.1
+    DNSConfiguring : Create Docker network
+}
+
+DNSConfiguring --> DNSActive : CoreDNS container started
+
+state DNSActive {
+    DNSActive : CoreDNS listening on port 53
+    DNSActive : Local domains resolve to 127.0.0.1
+    DNSActive : External domains forwarded
+    DNSActive : Zone files loaded
+    
+    note right
+        Active Zones:
+        - nextcloud.net
+        - services.dev  
+        - example.local
+    end note
+}
+
+DNSActive --> SSLGenerating : Execute generate-ssl-certs.sh
+
+state SSLGenerating {
+    SSLGenerating : Build cert generator image
+    SSLGenerating : Generate wildcard certificates
+    SSLGenerating : Copy to swag-config directory
+    SSLGenerating : Set proper permissions
+}
+
+SSLGenerating --> SSLReady : Certificates generated
+
+state SSLReady {
+    SSLReady : fullchain.pem available
+    SSLReady : privkey.pem available
+    SSLReady : cert.pem available
+    SSLReady : Nginx can load certificates
+}
+
+SSLReady --> ServicesStarting : docker-compose up -d
+
+state ServicesStarting {
+    ServicesStarting : Database initializing
+    ServicesStarting : Redis starting
+    ServicesStarting : Nextcloud container starting
+    ServicesStarting : nginx-proxy starting
+}
+
+state "Database Healthy" as DBHealthy
+state "Redis Healthy" as RedisHealthy  
+state "Nextcloud Ready" as NextcloudReady
+state "Proxy Ready" as ProxyReady
+
+ServicesStarting --> DBHealthy : MariaDB health check passes
+ServicesStarting --> RedisHealthy : Redis health check passes
+ServicesStarting --> NextcloudReady : Nextcloud initialization complete
+ServicesStarting --> ProxyReady : nginx-proxy SSL configured
+
+state FullyOperational {
+    DBHealthy --> FullyOperational
+    RedisHealthy --> FullyOperational  
+    NextcloudReady --> FullyOperational
+    ProxyReady --> FullyOperational
+    
+    FullyOperational : All services running
+    FullyOperational : HTTPS accessible at nextcloud.net
+    FullyOperational : DNS resolving correctly
+    FullyOperational : SSL certificates valid
+    FullyOperational : Database connected
+    FullyOperational : Cache operational
+    
+    note bottom
+        System Ready:
+        ✅ https://nextcloud.net accessible
+        ✅ DNS queries working
+        ✅ SSL certificates trusted (if installed)
+        ✅ All health checks passing
+    end note
+}
+
+FullyOperational --> Maintenance : Manual intervention
+
+state Maintenance {
+    state "Certificate Renewal" as CertRenewal
+    state "Database Backup" as DBBackup
+    state "System Updates" as SysUpdates
+    state "Configuration Changes" as ConfigChanges
+    
+    Maintenance --> CertRenewal : ./generate-ssl-certs.sh
+    Maintenance --> DBBackup : Database dump
+    Maintenance --> SysUpdates : Container updates
+    Maintenance --> ConfigChanges : Edit configs
+}
+
+Maintenance --> FullyOperational : Return to operation
+
+FullyOperational --> Stopping : Execute end.sh
+
+state Stopping {
+    Stopping : docker-compose down
+    Stopping : Stop all containers
+    Stopping : Preserve volumes
+    Stopping : Optional: Restore systemd-resolved
+}
+
+Stopping --> SystemStopped
+
+state SystemStopped {
+    SystemStopped : Containers stopped
+    SystemStopped : Networks removed
+    SystemStopped : Volumes preserved
+    SystemStopped : DNS may be restored
+}
+
+SystemStopped --> DNSConfiguring : Restart system
+SystemStopped --> SystemClean : Full cleanup
+
+' Error states
+FullyOperational --> ErrorState : Service failure
+
+state ErrorState {
+    state "DNS Resolution Failed" as DNSError
+    state "SSL Certificate Invalid" as SSLError
+    state "Database Connection Lost" as DBError
+    state "Service Container Down" as ContainerError
+    
+    ErrorState --> DNSError : dig commands fail
+    ErrorState --> SSLError : Browser certificate warnings
+    ErrorState --> DBError : Nextcloud can't connect
+    ErrorState --> ContainerError : docker-compose ps shows issues
+}
+
+DNSError --> DNSConfiguring : Reconfigure DNS
+SSLError --> SSLGenerating : Regenerate certificates
+DBError --> ServicesStarting : Restart services
+ContainerError --> ServicesStarting : docker-compose up -d
+
+note as troubleshooting
+    **Common Troubleshooting Commands:**
+    
+    Check DNS: dig nextcloud.net @127.0.0.1
+    Check containers: docker-compose ps
+    Check logs: docker-compose logs [service]
+    Check ports: sudo lsof -i :53,:80,:443
+    Reset DNS: sudo ./coredns/INSTALACION/DESACTIVAR_SYSTEM_SESOLVE.sh
+    Regenerate SSL: ./generate-ssl-certs.sh
+end note
+
+@enduml

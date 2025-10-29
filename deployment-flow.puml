@@ -1,0 +1,115 @@
+@startuml Nextcloud Deployment Flow
+!theme cerulean-outline
+
+title Nextcloud Infrastructure - Deployment & Data Flow
+
+skinparam sequence {
+    ArrowColor #0277BD
+    LifeLineBackgroundColor #E1F5FE
+    LifeLineBorderColor #0277BD
+    ParticipantBackgroundColor #FFFFFF
+    ParticipantBorderColor #0277BD
+}
+
+skinparam note {
+    BackgroundColor #FFF3E0
+    BorderColor #FF8F00
+}
+
+participant "Administrator" as admin
+participant "start.sh Script" as start_script
+participant "System DNS" as sys_dns
+participant "Docker Compose" as docker
+participant "CoreDNS" as coredns
+participant "SSL Generator" as ssl_gen
+participant "nginx-proxy" as nginx
+participant "Nextcloud App" as nextcloud
+participant "MariaDB" as mariadb
+participant "Redis" as redis
+participant "Client Browser" as browser
+
+== System Preparation ==
+admin -> start_script : Execute sudo ./start.sh
+start_script -> sys_dns : Stop systemd-resolved
+start_script -> sys_dns : Update /etc/resolv.conf\n(nameserver 127.0.0.1)
+start_script -> docker : Create network proxy_net_next
+
+== DNS Service Setup ==
+start_script -> docker : docker-compose up -d coredns
+docker -> coredns : Start DNS server on port 53
+coredns -> coredns : Load zone files\n(nextcloud.net, services.dev)
+
+note over coredns
+    Zone Configuration:
+    - nextcloud.net → 127.0.0.1
+    - *.nextcloud.net → 127.0.0.1
+    - Forward external queries to 1.1.1.1
+end note
+
+== SSL Certificate Generation ==
+admin -> ssl_gen : Execute ./generate-ssl-certs.sh
+ssl_gen -> ssl_gen : Build Docker image
+ssl_gen -> ssl_gen : Generate wildcard certificates\n(*.nextcloud.net)
+ssl_gen -> nginx : Copy certificates to swag-config/
+
+note over ssl_gen
+    Generated Files:
+    - fullchain.pem (Certificate chain)
+    - privkey.pem (Private key)
+    - cert.pem (Certificate only)
+end note
+
+== Database & Cache Setup ==
+start_script -> docker : docker-compose up -d db redis
+docker -> mariadb : Start MariaDB container
+docker -> redis : Start Redis container
+mariadb -> mariadb : Initialize nextcloud database
+redis -> redis : Start cache server with password
+
+== Application Deployment ==
+start_script -> docker : docker-compose up -d nextcloud
+docker -> nextcloud : Start Apache + PHP container
+nextcloud -> mariadb : Test database connection
+nextcloud -> redis : Test cache connection
+nextcloud -> nextcloud : Initialize Nextcloud application
+
+== Proxy Configuration ==
+start_script -> docker : docker-compose up -d nginx-proxy
+docker -> nginx : Start reverse proxy
+nginx -> nginx : Load SSL certificates
+nginx -> nextcloud : Configure upstream to Nextcloud
+
+== Client Access Flow ==
+browser -> coredns : DNS Query: nextcloud.net
+coredns -> browser : Response: 127.0.0.1
+
+browser -> nginx : HTTPS Request (443)\nhttps://nextcloud.net
+nginx -> nginx : SSL Termination
+nginx -> nextcloud : HTTP Forward (80)
+nextcloud -> mariadb : Database Query
+nextcloud -> redis : Cache Lookup/Store
+nextcloud -> browser : HTTP Response
+nginx -> browser : HTTPS Response
+
+== Monitoring & Health ==
+loop Health Checks
+    docker -> mariadb : mysqladmin ping
+    docker -> redis : redis-cli ping
+    docker -> coredns : HTTP health check (/health)
+end
+
+== Optional: SSL System Installation ==
+admin -> ssl_gen : Execute sudo ./install-ssl-cert-system.sh
+ssl_gen -> sys_dns : Install certificate in system store
+ssl_gen -> browser : Certificate trusted by browsers
+
+note over admin, browser
+    **Key Scripts Available:**
+    - start.sh: Complete system startup
+    - end.sh: Clean shutdown
+    - generate-ssl-certs.sh: SSL certificate generation
+    - install-ssl-cert-system.sh: System certificate installation
+    - coredns/INSTALACION/*.sh: DNS configuration scripts
+end note
+
+@enduml
