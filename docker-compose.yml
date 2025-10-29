@@ -120,6 +120,22 @@ services:
     networks:
       - proxy_net_next
 
+  # ==============================
+  # Generador de Certificados SSL Autofirmados (Opcional)
+  # Descomenta este servicio si prefieres generar certificados usando Docker Compose
+  #ssl-cert-generator:
+  #  build:
+  #    context: ./self-signed-certs
+  #    dockerfile: Dockerfile
+  #  container_name: ssl-cert-generator
+  #  volumes:
+  #    - ./swag-config/etc/letsencrypt/live/nextcloud.net:/output
+  #  restart: "no"  # Solo ejecuta una vez
+  #  profiles:
+  #    - tools     # Solo se ejecuta cuando se especifica el perfil 'tools'
+
+  # ==============================
+  # SWAG/Let's Encrypt (Deshabilitado - usando certificados autofirmados)
   #letsencrypt:
   #  image: lscr.io/linuxserver/swag:latest
   #  container_name: swag-letsencrypt
