@@ -4,6 +4,14 @@ redis/
 nextcloud/
 nextcloud_data/
 
+# --- Certificados SSL ---
+swag-config/etc/letsencrypt/
+swag-config/keys/
+*.pem
+*.crt
+*.key
+*.csr
+
 # --- Secretos ---
 .env
 
