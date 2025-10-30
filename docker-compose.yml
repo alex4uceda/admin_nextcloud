@@ -9,7 +9,7 @@ services:
       - MARIADB_DATABASE=${MYSQL_DATABASE}
       - MARIADB_USER=${MYSQL_USER}
       - MARIADB_PASSWORD=${MYSQL_PASSWORD}
-      - TZ=America/El_Salvador
+      - TZ=${TZ}
     volumes:
       - ./db:/var/lib/mysql
     healthcheck:
@@ -32,25 +32,25 @@ services:
         exec redis-server --appendonly yes;
       fi'
     environment:
-      - TZ=America/El_Salvador
+      - TZ=${TZ}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     volumes:
       - ./redis:/data
     healthcheck:
-      # Use CMD-SHELL so we can honor a possible REDIS_PASSWORD inside the container
       test: ["CMD-SHELL", "if [ -n \"$REDIS_PASSWORD\" ]; then redis-cli -a \"$REDIS_PASSWORD\" ping; else redis-cli ping; fi"]
       interval: 10s
       timeout: 5s
       retries: 10
     networks:
-        - proxy_net_next
+      - proxy_net_next
 
   nextcloud:
     image: nextcloud:apache
     container_name: nextcloud-app
     restart: unless-stopped
-    #ports:
-    #  - "${NEXTCLOUD_HTTP_PORT}:80"
+    # No exponer puerto directamente ya que usamos nginx-proxy
+    # ports:
+    #   - "${NEXTCLOUD_HTTP_PORT}:80"
     environment:
       - MYSQL_HOST=db
       - MYSQL_DATABASE=${MYSQL_DATABASE}
@@ -65,7 +65,8 @@ services:
       - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
       - NEXTCLOUD_TRUSTED_DOMAINS=${NEXTCLOUD_TRUSTED_DOMAINS}
       - OVERWRITEHOST=${OVERWRITEHOST}
-      - OVERWRITEPROTOCOL=${OVERWRITEPROTOCOL}
+      - NEXTCLOUD_DATA_DIR=/var/www/html/data
+      - APACHE_DISABLE_REWRITE_IP=1
     volumes:
       - ./nextcloud:/var/www/html
       - ./nextcloud_data:/var/www/html/data
@@ -74,13 +75,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command:
-      - /bin/sh
-      - -lc
-      - |
-        echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf
-        a2enconf servername
-        exec apache2-foreground
+    networks:
+      - proxy_net_next
+
+  coredns:
+    image: coredns/coredns:1.11.1
+    container_name: coredns
+    restart: unless-stopped
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "9153:9153/tcp"
+    volumes:
+      - ./coredns/Corefile:/Corefile:ro
+      - ./coredns/zones:/zones:ro
+    command: ["-conf", "/Corefile"]
     networks:
       - proxy_net_next
 
@@ -101,22 +110,6 @@ services:
     depends_on:
       #- letsencrypt
       - nextcloud
-    networks:
-      - proxy_net_next
-
-  coredns:
-    image: coredns/coredns:1.11.1
-    container_name: coredns
-    restart: unless-stopped
-    # DNS: expone 53 UDP/TCP. Métricas Prometheus en 9153 (opcional)
-    ports:
-      - "53:53/udp"
-      - "53:53/tcp"
-      - "9153:9153/tcp"
-    volumes:
-      - ./coredns/Corefile:/Corefile:ro
-      - ./coredns/zones:/zones:ro
-    command: ["-conf", "/Corefile"]
     networks:
       - proxy_net_next
 
@@ -158,7 +151,6 @@ services:
   #    - proxy_net_next
   #  ports:
   #    - "443:443"                     # recuerda exponer 443 si será reverse proxy       
-
 
 networks:
   proxy_net_next:
