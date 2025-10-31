@@ -154,68 +154,71 @@ services:
   # ==============================
   # Desktop Services
   # ==============================
-  ubuntu-desktop-cliente-A:
-    image: dorowu/ubuntu-desktop-lxde-vnc
-    container_name: ubuntu-desktopA
-    restart: unless-stopped
+  xfce-desktop-a:
+    build:
+      context: ./xfce-desktop
+      dockerfile: Dockerfile
+    container_name: xfce-desktop-a
     ports:
-      - "6080:80"     # noVNC (web)
+      - "6901:6901"   # noVNC (web)
       - "5901:5901"   # VNC opcional
     environment:
       - TZ=America/El_Salvador
-      - USER=ubuntu
-      - PASSWORD=MiPasswordFuerte123
-      - RESOLUTION=1366x768
+      - VNC_PW=MiPasswordFuerte123
+      - VNC_RESOLUTION=1600x900
     volumes:
-      - ./dataA:/home/ubuntu
+      - ./dataA:/home/headless/workspace
     shm_size: "2gb"
+    restart: unless-stopped
     dns:
       - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.50
-
-  ubuntu-desktop-cliente-B:
-    image: dorowu/ubuntu-desktop-lxde-vnc
-    container_name: ubuntu-desktopB
-    restart: unless-stopped
+        ipv4_address: 172.18.0.41
+  
+  xfce-desktop-b:
+    build:
+      context: ./xfce-desktop
+      dockerfile: Dockerfile
+    container_name: xfce-desktop-b
     ports:
-      - "6081:80"     # noVNC (web)
+      - "6902:6901"   # noVNC (web)
       - "5902:5901"   # VNC opcional
     environment:
       - TZ=America/El_Salvador
-      - USER=ubuntu
-      - PASSWORD=MiPasswordFuerte123
-      - RESOLUTION=1366x768
+      - VNC_PW=MiPasswordFuerte123
+      - VNC_RESOLUTION=1600x900
     volumes:
-      - ./dataB:/home/ubuntu
+      - ./dataB:/home/headless/workspace
     shm_size: "2gb"
+    restart: unless-stopped
     dns:
       - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.51
+        ipv4_address: 172.18.0.42
 
-  ubuntu-desktop-cliente-C:
-    image: dorowu/ubuntu-desktop-lxde-vnc
-    container_name: ubuntu-desktopC
-    restart: unless-stopped
+  xfce-desktop-c:
+    build:
+      context: ./xfce-desktop
+      dockerfile: Dockerfile
+    container_name: xfce-desktop-c
     ports:
-      - "6082:80"     # noVNC (web)
+      - "6903:6901"   # noVNC (web)
       - "5903:5901"   # VNC opcional
     environment:
       - TZ=America/El_Salvador
-      - USER=ubuntu
-      - PASSWORD=MiPasswordFuerte123
-      - RESOLUTION=1366x768
+      - VNC_PW=MiPasswordFuerte123
+      - VNC_RESOLUTION=1600x900
     volumes:
-      - ./dataC:/home/ubuntu
+      - ./dataC:/home/headless/workspace
     shm_size: "2gb"
+    restart: unless-stopped
     dns:
       - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.52
+        ipv4_address: 172.18.0.43
 
   # ==============================
   # Generador de Certificados SSL Autofirmados (Opcional)
