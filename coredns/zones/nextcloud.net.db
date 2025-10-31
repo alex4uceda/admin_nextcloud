@@ -9,10 +9,10 @@ $TTL 3600
     IN  NS  ns1.nextcloud.net.
 
 ; Servidor autoritativo de la zona
-ns1 IN  A   127.0.0.1
+ns1 IN  A   172.18.0.31
 
 ; Dominio principal apunta a localhost (máquina anfitrión)
-@    IN  A     127.0.0.1
+@    IN  A     172.18.0.31
 
 ; Subdominios también a localhost si es necesario
 www  IN  CNAME @

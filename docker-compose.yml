@@ -20,6 +20,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    dns:
+      - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
         ipv4_address: 172.18.0.10
@@ -45,6 +47,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    dns:
+      - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
         ipv4_address: 172.18.0.11
@@ -83,6 +87,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    dns:
+      - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
         ipv4_address: 172.18.0.20
@@ -120,6 +126,8 @@ services:
       - ./swag-config/etc/letsencrypt/live/nextcloud.net:/etc/nginx/certs/nextcloud.net:ro
     depends_on:
       - nextcloud
+    dns:
+      - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
         ipv4_address: 172.18.0.31
@@ -137,6 +145,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
+    dns:
+      - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
         ipv4_address: 172.18.0.40
@@ -146,7 +156,7 @@ services:
   # ==============================
   ubuntu-desktop-cliente-A:
     image: dorowu/ubuntu-desktop-lxde-vnc
-    container_name: ubuntu-desktop
+    container_name: ubuntu-desktopA
     restart: unless-stopped
     ports:
       - "6080:80"     # noVNC (web)
@@ -157,11 +167,55 @@ services:
       - PASSWORD=MiPasswordFuerte123
       - RESOLUTION=1366x768
     volumes:
-      - ./data:/home/ubuntu
+      - ./dataA:/home/ubuntu
     shm_size: "2gb"
+    dns:
+      - 172.18.0.30  # CoreDNS
     networks:
       proxy_net_next:
         ipv4_address: 172.18.0.50
+
+  ubuntu-desktop-cliente-B:
+    image: dorowu/ubuntu-desktop-lxde-vnc
+    container_name: ubuntu-desktopB
+    restart: unless-stopped
+    ports:
+      - "6081:80"     # noVNC (web)
+      - "5902:5901"   # VNC opcional
+    environment:
+      - TZ=America/El_Salvador
+      - USER=ubuntu
+      - PASSWORD=MiPasswordFuerte123
+      - RESOLUTION=1366x768
+    volumes:
+      - ./dataB:/home/ubuntu
+    shm_size: "2gb"
+    dns:
+      - 172.18.0.30  # CoreDNS
+    networks:
+      proxy_net_next:
+        ipv4_address: 172.18.0.51
+
+  ubuntu-desktop-cliente-C:
+    image: dorowu/ubuntu-desktop-lxde-vnc
+    container_name: ubuntu-desktopC
+    restart: unless-stopped
+    ports:
+      - "6082:80"     # noVNC (web)
+      - "5903:5901"   # VNC opcional
+    environment:
+      - TZ=America/El_Salvador
+      - USER=ubuntu
+      - PASSWORD=MiPasswordFuerte123
+      - RESOLUTION=1366x768
+    volumes:
+      - ./dataC:/home/ubuntu
+    shm_size: "2gb"
+    dns:
+      - 172.18.0.30  # CoreDNS
+    networks:
+      proxy_net_next:
+        ipv4_address: 172.18.0.52
 
   # ==============================
   # Generador de Certificados SSL Autofirmados (Opcional)
