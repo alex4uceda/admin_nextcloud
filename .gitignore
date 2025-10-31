@@ -3,6 +3,9 @@ db/
 redis/
 nextcloud/
 nextcloud_data/
+dataA/
+dataB/
+dataC/
 
 # --- Certificados SSL ---
 swag-config/etc/letsencrypt/
