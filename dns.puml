@@ -1,0 +1,102 @@
+@startuml
+title **🌐 Funcionamiento DNS (Modelo Cliente-Servidor)**
+
+' === Configuración de estilos profesionales ===
+skinparam backgroundColor #FAFBFC
+skinparam titleFontSize 16
+skinparam titleFontColor #2C3E50
+skinparam shadowing false
+skinparam roundcorner 10
+
+skinparam node {
+  BackgroundColor #FFFFFF
+  BorderColor #34495E
+  BorderThickness 2
+  FontColor #2C3E50
+  FontSize 11
+  FontStyle bold
+}
+
+skinparam actor {
+  FontSize 12
+  FontColor #34495E
+  FontStyle bold
+  BackgroundColor #ECF0F1
+  BorderColor #34495E
+  BorderThickness 2
+}
+
+skinparam cloud {
+  BackgroundColor #EBF3FD
+  BorderColor #3498DB
+  BorderThickness 2
+  FontColor #2C3E50
+  FontStyle bold
+}
+
+skinparam arrow {
+  FontSize 10
+  FontColor #34495E
+  Color #2C3E50
+  Thickness 2
+}
+
+skinparam note {
+  BackgroundColor #F8F9FA
+  BorderColor #95A5A6
+  BorderThickness 1
+  FontSize 10
+  FontColor #2C3E50
+}
+
+' === Componentes del Sistema ===
+rectangle "Componentes DNS" {
+  actor "👤 Usuario" as U #E8F6F3
+  node "💻 Cliente\n(Navegador o SO)" as CLIENTE #FDEAA7
+  node "🧠 Servidor DNS Local / Resolver\n(Consulta recursiva o cacheada)" as DNS_LOCAL #D5E8D4
+  cloud "🌍 Internet" as INTERNET #E1D5E7
+  node "🏛️ Servidor DNS Autoritativo\n(Dominio consultado)" as DNS_AUTH #FCE4EC
+}
+
+' === Flujo de Resolución DNS ===
+U -[#E74C3C,thickness=3]-> CLIENTE : **① Ingresa www.ejemplo.com**
+CLIENTE -[#3498DB,thickness=3]-> DNS_LOCAL : **② Consulta DNS**\n(puerto 53 UDP/TCP)
+DNS_LOCAL -[#F39C12,thickness=3]-> INTERNET : **③ Si no tiene caché,**\nconsulta servidores raíz/TLD
+INTERNET -[#9B59B6,thickness=3]-> DNS_AUTH : **④ El flujo llega al**\nservidor autoritativo
+DNS_AUTH -[#27AE60,thickness=3]-> DNS_LOCAL : **⑤ Devuelve la IP**\ndel dominio
+DNS_LOCAL -[#16A085,thickness=3]-> CLIENTE : **⑥ Responde con la IP**
+CLIENTE -[#2E86C1,thickness=3]-> U : **⑦ Cliente usa la IP**\npara conectarse al sitio
+
+' === Documentación Técnica ===
+note right of CLIENTE #FFFACD
+  **💡 Cliente**
+  ====
+  Es el origen de la consulta DNS.
+  
+  Puede ser un navegador web, 
+  sistema operativo o aplicación.
+end note
+
+note right of DNS_LOCAL #F0FFF0
+  **🧠 Servidor DNS Local**
+  ====
+  Guarda respuestas en caché para 
+  acelerar futuras consultas según el TTL.
+end note
+
+note right of DNS_AUTH #F0F8FF
+  **🏛️ Servidor Autoritativo**
+  ====
+  Posee la información oficial del dominio 
+  (A, AAAA, MX, CNAME, etc.).
+end note
+
+' === Leyenda ===
+legend bottom
+  **Protocolo DNS - Puerto 53**
+  |= Tipo |= Descripción |
+  | UDP | Consultas rápidas (preferido) |
+  | TCP | Transferencias de zona o respuestas grandes |
+end legend
+
+@enduml
