@@ -1,11 +1,33 @@
+# ===================================================================================
+# DOCKER COMPOSE - NEXTCLOUD MULTI-DESKTOP CON DNS Y PROXY INVERSO
+# ===================================================================================
+# 
+# OBJETIVO PRINCIPAL:
+# - Desplegar Nextcloud accesible desde múltiples escritorios virtuales (A, B, C)
+# - Configurar DNS personalizado (CoreDNS) para resolución de nombres locales
+# - Implementar proxy inverso (nginx) para enrutamiento y SSL
+# - Proporcionar acceso aislado y controlado a los servicios
+#
+# ARQUITECTURA:
+# - Red principal (proxy_net_next): Servicios core + clientes A y B
+# - Red aislada (isolated_client_net): Cliente C con acceso limitado
+# - DNS personalizado: CoreDNS para resolución nextcloud.net y dominios locales
+# - Proxy inverso: nginx para SSL termination y enrutamiento
+# - Almacenamiento: MariaDB + Redis para persistencia y caché
+# ===================================================================================
+
 services:
   # ==============================
-  # Database Services
+  # DATABASE SERVICES - Almacenamiento y Caché
+  # ==============================
+  # MariaDB: Base de datos principal de Nextcloud
+  # Redis: Sistema de caché para mejorar rendimiento
   # ==============================
   db:
     image: mariadb:10.11
     container_name: nextcloud-db
     restart: unless-stopped
+    # Configuración optimizada para Nextcloud
     command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     environment:
       - MARIADB_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
@@ -21,15 +43,17 @@ services:
       timeout: 5s
       retries: 10
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.0.30  # CoreDNS para resolución de nombres internos
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.10
+        ipv4_address: 172.18.0.10  # IP fija en red principal
 
+  # REDIS CACHE: Sistema de caché para mejorar rendimiento de Nextcloud
   redis:
     image: redis:7-alpine
     container_name: nextcloud-redis
     restart: unless-stopped
+    # Configuración condicional de autenticación
     command: >
       sh -c '
       if [ -n "$REDIS_PASSWORD" ]; then
@@ -48,19 +72,23 @@ services:
       timeout: 5s
       retries: 10
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.0.30  # CoreDNS para resolución de nombres internos
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.11
+        ipv4_address: 172.18.0.11  # IP fija en red principal
 
   # ==============================
-  # Application Services
+  # APPLICATION SERVICES - Aplicación Principal
   # ==============================
+  # Nextcloud: Plataforma de almacenamiento en la nube
+  # Accesible a través del proxy inverso nginx
+  # ==============================
+  # NEXTCLOUD APP: Aplicación principal de almacenamiento en la nube
   nextcloud:
     image: nextcloud:apache
     container_name: nextcloud-app
     restart: unless-stopped
-    # No exponer puerto directamente ya que usamos nginx-proxy
+    # Puerto no expuesto directamente - acceso vía nginx proxy inverso
     # ports:
     #   - "${NEXTCLOUD_HTTP_PORT}:80"
     environment:
@@ -88,30 +116,39 @@ services:
       redis:
         condition: service_healthy
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.0.30  # CoreDNS para resolución de nombres internos
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.20
+        ipv4_address: 172.18.0.20  # IP fija en red principal
 
   # ==============================
-  # Network Services
+  # NETWORK SERVICES - DNS y Proxy Inverso
   # ==============================
+  # CoreDNS: Servidor DNS personalizado para resolución de nombres locales
+  # nginx-proxy: Proxy inverso para SSL termination y enrutamiento
+  # ==============================
+  # COREDNS: Servidor DNS personalizado para resolución de dominios locales
+  # Permite que los contenedores resuelvan nextcloud.net y otros dominios internos
   coredns:
     image: coredns/coredns:1.11.1
     container_name: coredns
     restart: unless-stopped
     ports:
-      - "53:53/udp"
-      - "53:53/tcp"
-      - "9153:9153/tcp"
+      - "53:53/udp"      # DNS UDP (puerto estándar)
+      - "53:53/tcp"      # DNS TCP (para consultas grandes)
+      - "9153:9153/tcp"  # Puerto de métricas de CoreDNS
     volumes:
-      - ./coredns/Corefile:/Corefile:ro
-      - ./coredns/zones:/zones:ro
+      - ./coredns/Corefile:/Corefile:ro     # Configuración principal de CoreDNS
+      - ./coredns/zones:/zones:ro           # Archivos de zona DNS personalizados
     command: ["-conf", "/Corefile"]
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.30
+        ipv4_address: 172.18.0.30      # IP en red principal
+      isolated_client_net:
+        ipv4_address: 172.18.128.30    # IP en red aislada (acceso desde cliente C)
 
+  # NGINX PROXY INVERSO: Punto de entrada principal para tráfico web
+  # Maneja SSL termination y enruta tráfico hacia Nextcloud
   nginx-proxy:
     build:
       context: ./proxy-nginx
@@ -119,22 +156,26 @@ services:
     container_name: nginx-proxy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"      # HTTP (redirige a HTTPS)
+      - "443:443"    # HTTPS (tráfico principal)
     volumes:
-      - ./proxy-nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./swag-config/etc/letsencrypt/live/nextcloud.net:/etc/nginx/certs/nextcloud.net:ro
+      - ./proxy-nginx/nginx.conf:/etc/nginx/nginx.conf:ro                           # Configuración nginx
+      - ./swag-config/etc/letsencrypt/live/nextcloud.net:/etc/nginx/certs/nextcloud.net:ro  # Certificados SSL
     depends_on:
-      - nextcloud
+      - nextcloud    # Espera a que Nextcloud esté listo
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.0.30  # CoreDNS para resolución de nombres internos
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.31
+        ipv4_address: 172.18.0.31  # IP fija en red principal
 
   # ==============================
-  # Management Services
+  # MANAGEMENT SERVICES - Administración del Sistema
   # ==============================
+  # Portainer: Interfaz web para gestión de contenedores Docker
+  # ==============================
+  
+  # PORTAINER: Interfaz web para administración de contenedores
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
@@ -146,83 +187,98 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.0.30  # CoreDNS para resolución de nombres internos
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.40
+        ipv4_address: 172.18.0.40  # IP fija en red principal
 
   # ==============================
-  # Desktop Services
+  # DESKTOP SERVICES - Escritorios Virtuales de Cliente
   # ==============================
+  # Escritorios XFCE virtuales accesibles vía web (noVNC)
+  # - Desktop A y B: Red principal (acceso completo)
+  # - Desktop C: Red aislada (acceso controlado)
+  # Cada escritorio puede acceder a Nextcloud usando nextcloud.net
+  # ==============================
+  # ESCRITORIO VIRTUAL A: Cliente con acceso completo a la red principal
   xfce-desktop-a:
     build:
       context: ./xfce-desktop
       dockerfile: Dockerfile
     container_name: xfce-desktop-a
     ports:
-      - "6901:6901"   # noVNC (web)
-      - "5901:5901"   # VNC opcional
+      - "6901:6901"   # noVNC web interface (acceso: http://localhost:6901)
+      - "5901:5901"   # VNC directo (opcional)
     environment:
       - TZ=America/El_Salvador
-      - VNC_PW=MiPasswordFuerte123
-      - VNC_RESOLUTION=1600x900
+      - VNC_PW=MiPasswordFuerte123  # Contraseña para acceso VNC
+      - VNC_RESOLUTION=1600x900     # Resolución del escritorio virtual
     volumes:
-      - ./dataA:/home/headless/workspace
-    shm_size: "2gb"
+      - ./dataA:/home/headless/workspace  # Carpeta de trabajo persistente
+    shm_size: "2gb"                       # Memoria compartida para aplicaciones gráficas
     restart: unless-stopped
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.0.30  # CoreDNS - puede resolver nextcloud.net
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.41
+        ipv4_address: 172.18.0.41  # IP fija en red principal
   
+  # ESCRITORIO VIRTUAL B: Cliente con acceso completo a la red principal
   xfce-desktop-b:
     build:
       context: ./xfce-desktop
       dockerfile: Dockerfile
     container_name: xfce-desktop-b
     ports:
-      - "6902:6901"   # noVNC (web)
-      - "5902:5901"   # VNC opcional
+      - "6902:6901"   # noVNC web interface (acceso: http://localhost:6902)
+      - "5902:5901"   # VNC directo (opcional)
     environment:
       - TZ=America/El_Salvador
-      - VNC_PW=MiPasswordFuerte123
-      - VNC_RESOLUTION=1600x900
+      - VNC_PW=MiPasswordFuerte123  # Contraseña para acceso VNC
+      - VNC_RESOLUTION=1600x900     # Resolución del escritorio virtual
     volumes:
-      - ./dataB:/home/headless/workspace
-    shm_size: "2gb"
+      - ./dataB:/home/headless/workspace  # Carpeta de trabajo persistente
+    shm_size: "2gb"                       # Memoria compartida para aplicaciones gráficas
     restart: unless-stopped
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.0.30  # CoreDNS - puede resolver nextcloud.net
     networks:
       proxy_net_next:
-        ipv4_address: 172.18.0.42
+        ipv4_address: 172.18.0.42  # IP fija en red principal
 
+  # ESCRITORIO VIRTUAL C: Cliente en red aislada con acceso controlado
+  # Configuración de red dual: aislada (principal) + acceso limitado a servicios core
   xfce-desktop-c:
     build:
       context: ./xfce-desktop
       dockerfile: Dockerfile
     container_name: xfce-desktop-c
     ports:
-      - "6903:6901"   # noVNC (web)
-      - "5903:5901"   # VNC opcional
+      - "6903:6901"   # noVNC web interface (acceso: http://localhost:6903)
+      - "5903:5901"   # VNC directo (opcional)
     environment:
       - TZ=America/El_Salvador
-      - VNC_PW=MiPasswordFuerte123
-      - VNC_RESOLUTION=1600x900
+      - VNC_PW=MiPasswordFuerte123  # Contraseña para acceso VNC
+      - VNC_RESOLUTION=1600x900     # Resolución del escritorio virtual
     volumes:
-      - ./dataC:/home/headless/workspace
-    shm_size: "2gb"
+      - ./dataC:/home/headless/workspace  # Carpeta de trabajo persistente
+    shm_size: "2gb"                       # Memoria compartida para aplicaciones gráficas
     restart: unless-stopped
     dns:
-      - 172.18.0.30  # CoreDNS
+      - 172.18.128.30  # CoreDNS en red aislada - puede resolver nextcloud.net
     networks:
+      isolated_client_net:
+        ipv4_address: 172.18.128.10   # IP principal en red aislada
       proxy_net_next:
-        ipv4_address: 172.18.0.43
+        ipv4_address: 172.18.0.43     # IP secundaria para acceso controlado a servicios
 
   # ==============================
-  # Generador de Certificados SSL Autofirmados (Opcional)
+  # CERTIFICADOS SSL (OPCIONAL)
+  # ==============================
+  # Generador de certificados autofirmados para desarrollo local
   # Descomenta este servicio si prefieres generar certificados usando Docker Compose
+  # ==============================
+  
   #ssl-cert-generator:
   #  build:
   #    context: ./self-signed-certs
@@ -235,7 +291,12 @@ services:
   #    - tools     # Solo se ejecuta cuando se especifica el perfil 'tools'
 
   # ==============================
-  # SWAG/Let's Encrypt (Deshabilitado - usando certificados autofirmados)
+  # SWAG/LET'S ENCRYPT (DESHABILITADO)
+  # ==============================
+  # Servicio para certificados SSL automáticos de Let's Encrypt
+  # Actualmente deshabilitado - usando certificados autofirmados para desarrollo
+  # ==============================
+  
   #letsencrypt:
   #  image: lscr.io/linuxserver/swag:latest
   #  container_name: swag-letsencrypt
@@ -257,17 +318,63 @@ services:
   #  networks:
   #    - proxy_net_next
   #  ports:
-  #    - "443:443"                     # recuerda exponer 443 si será reverse proxy       
+  #    - "443:443"                     # exponer 443 si actúa como reverse proxy
+
+# ===================================================================================
+# CONFIGURACIÓN DE ALMACENAMIENTO Y REDES
+# ===================================================================================
 
 volumes:
-  portainer_data:
+  portainer_data:    # Volumen persistente para datos de Portainer
 
-
+# ==============================
+# REDES VIRTUALES
+# ==============================
+# Arquitectura de red segmentada para control de acceso
+# ==============================
 networks:
+  # RED PRINCIPAL: Servicios core + clientes A y B (acceso completo)
   proxy_net_next:
     driver: bridge
     ipam:
       driver: default
       config:
-        - subnet: 172.18.0.0/16
+        - subnet: 172.18.0.0/17        # Rango: 172.18.0.1 - 172.18.127.254 (32,766 IPs)
           gateway: 172.18.0.1
+    # Contenedores en esta red:
+    # - db (172.18.0.10)           : Base de datos MariaDB
+    # - redis (172.18.0.11)        : Caché Redis
+    # - nextcloud (172.18.0.20)    : Aplicación Nextcloud
+    # - coredns (172.18.0.30)      : Servidor DNS
+    # - nginx-proxy (172.18.0.31)  : Proxy inverso
+    # - portainer (172.18.0.40)    : Administración
+    # - xfce-desktop-a (172.18.0.41) : Cliente A
+    # - xfce-desktop-b (172.18.0.42) : Cliente B
+    # - xfce-desktop-c (172.18.0.43) : Cliente C (IP secundaria)
+  
+  # RED AISLADA: Cliente C con acceso controlado (VLSM)
+  isolated_client_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.128.0/24      # Rango: 172.18.128.1 - 172.18.128.254 (254 IPs)
+          gateway: 172.18.128.1
+    # Contenedores en esta red:
+    # - coredns (172.18.128.30)      : DNS accesible desde red aislada
+    # - xfce-desktop-c (172.18.128.10) : Cliente C (IP principal)
+
+# ===================================================================================
+# FLUJO DE ACCESO A NEXTCLOUD:
+# 
+# 1. Cliente accede desde escritorio virtual (A, B, o C)
+# 2. Resuelve nextcloud.net usando CoreDNS (172.18.0.30 o 172.18.128.30)
+# 3. Tráfico llega a nginx-proxy (172.18.0.31:443)
+# 4. nginx termina SSL y enruta a nextcloud-app (172.18.0.20:80)
+# 5. Nextcloud consulta db (172.18.0.10) y redis (172.18.0.11)
+# 6. Respuesta regresa por el mismo camino
+# 
+# SEGMENTACIÓN DE RED:
+# - Clientes A y B: Acceso completo a red principal
+# - Cliente C: Acceso aislado + conexión controlada a servicios específicos
+# ===================================================================================
