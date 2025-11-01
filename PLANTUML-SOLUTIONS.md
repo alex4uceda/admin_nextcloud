@@ -1,4 +1,6 @@
-# Soluciones para Visualizar Diagramas PlantUML
+# Documentación de Diagramas Arquitecturales - Nextcloud Multi-Desktop
+
+Este directorio contiene diagramas PlantUML que documentan la arquitectura completa del sistema Nextcloud Multi-Desktop con servicios de backup y segmentación de red.
 
 ## 🚨 Error 520 - Servidor PlantUML no disponible
 
@@ -43,26 +45,48 @@ docker run -d -p 8080:8080 plantuml/plantuml-server:jetty
 
 Los diagramas están diseñados para ser legibles incluso como código:
 
-#### infrastructure-diagram.puml
-- Muestra la arquitectura completa
-- Contenedores: CoreDNS, nginx-proxy, Nextcloud, MariaDB, Redis
-- Conexiones y flujos de datos
-- Volúmenes y montajes
+## 📊 **Diagramas Disponibles**
 
-#### deployment-flow.puml  
-- Secuencia de instalación paso a paso
-- Interacciones entre scripts y servicios
-- Proceso completo de despliegue
+#### 🏗️ infrastructure-diagram.puml
+**Arquitectura Completa del Sistema**
+- **Servicios Core**: nginx-proxy, Nextcloud, MariaDB con SSL, Redis
+- **DNS Personalizado**: CoreDNS con zonas locales
+- **Escritorios Virtuales**: 3 desktops XFCE con noVNC
+- **Backup Automatizado**: Servicio de respaldo con sync remoto
+- **Administración**: Portainer para gestión Docker
+- **Redes Segmentadas**: Red principal + red aislada
 
-#### network-architecture.puml
-- Topología de red detallada
-- Configuración de seguridad
-- Mapeo de puertos y volúmenes
+#### 🚀 deployment-flow.puml  
+**Flujo de Despliegue Automatizado**
+- **Secuencia completa** de instalación
+- **Scripts de automatización**: start.sh, SSL, DNS
+- **Verificaciones** de salud y conectividad
+- **Configuración de servicios** paso a paso
+- **Integración de backup** desde el inicio
 
-#### system-states.puml
-- Estados del sistema durante el ciclo de vida
-- Transiciones y manejo de errores
-- Comandos de troubleshooting
+#### 🌐 network-architecture.puml
+**Arquitectura de Red Avanzada**
+- **Red Principal (172.18.0.0/17)**: 32,766 IPs disponibles
+- **Red Aislada (172.18.128.0/24)**: Cliente C controlado
+- **Segmentación VLSM**: Optimización de rangos IP
+- **DNS Dual**: CoreDNS en ambas redes
+- **Proxy Inverso**: SSL termination centralizado
+- **Mapeo de puertos**: Servicios web y escritorios
+
+#### 🔄 system-states.puml
+**Estados y Transiciones del Sistema**
+- **Ciclo de vida completo**: inicio → operación → mantenimiento
+- **Estados de backup**: programado, ejecutando, completado
+- **Manejo de errores**: recuperación automática
+- **Health checks**: monitoreo continuo
+- **Comandos de troubleshooting**: diagnóstico y reparación
+
+#### 📊 dns.puml
+**Configuración DNS Detallada**
+- **Zonas DNS locales**: nextcloud.net, services.dev, example.local
+- **Forwarding externo**: 1.1.1.1, 8.8.8.8
+- **Resolución interna**: servicios por nombre
+- **Configuración Corefile**: sintaxis y opciones
 
 ## 🚀 **Inicio Rápido con Docker PlantUML**
 
@@ -79,11 +103,45 @@ docker run -d -p 8080:8080 --name plantuml-server plantuml/plantuml-server:jetty
 
 ### Paso 3: Exportar diagramas
 ```bash
-# Generar PNG de todos los diagramas
+# Generar PNG de todos los diagramas disponibles
 curl -X POST --data-urlencode "text@infrastructure-diagram.puml" http://localhost:8080/plantuml/png > infrastructure.png
 curl -X POST --data-urlencode "text@deployment-flow.puml" http://localhost:8080/plantuml/png > deployment.png
 curl -X POST --data-urlencode "text@network-architecture.puml" http://localhost:8080/plantuml/png > network.png
 curl -X POST --data-urlencode "text@system-states.puml" http://localhost:8080/plantuml/png > states.png
+curl -X POST --data-urlencode "text@dns.puml" http://localhost:8080/plantuml/png > dns.png
+
+# Script para exportar todos los diagramas automáticamente
+#!/bin/bash
+echo "Exportando diagramas PlantUML..."
+for file in *.puml; do
+    name=$(basename "$file" .puml)
+    echo "Generando ${name}.png..."
+    curl -X POST --data-urlencode "text@${file}" http://localhost:8080/plantuml/png > "${name}.png"
+done
+echo "Exportación completada!"
+```
+
+### Paso 4: Generar documentación completa
+```bash
+# Crear directorio para diagramas exportados
+mkdir -p docs/diagrams
+
+# Exportar todos los diagramas con metadatos
+for diagram in infrastructure deployment-flow network-architecture system-states dns; do
+    echo "Procesando ${diagram}..."
+    
+    # PNG para documentación
+    curl -X POST --data-urlencode "text@${diagram}.puml" \
+         http://localhost:8080/plantuml/png > docs/diagrams/${diagram}.png
+    
+    # SVG para web (escalable)
+    curl -X POST --data-urlencode "text@${diagram}.puml" \
+         http://localhost:8080/plantuml/svg > docs/diagrams/${diagram}.svg
+    
+    # TXT para revisión de código
+    curl -X POST --data-urlencode "text@${diagram}.puml" \
+         http://localhost:8080/plantuml/txt > docs/diagrams/${diagram}.txt
+done
 ```
 
 ## 🌐 **Herramientas Online Alternativas**

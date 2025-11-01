@@ -1,6 +1,6 @@
-# Generación de Certificados SSL Autofirmados Wildcard para Nextcloud
+# Certificados SSL para Nextcloud Multi-Desktop Environment
 
-Este proyecto incluye una solución completa para generar certificados SSL autofirmados wildcard para uso en desarrollo local con el dominio `*.nextcloud.net`.
+Este proyecto incluye una solución completa para generar certificados SSL autofirmados wildcard para uso en entorno multi-desktop con el dominio `*.nextcloud.net`. Los certificados proporcionan comunicación segura entre todos los servicios y escritorios virtuales.
 
 ## 📋 Tabla de Contenidos
 
@@ -31,8 +31,13 @@ PROYECTO_V1/
 │       ├── fullchain.pem              # Certificado completo
 │       ├── privkey.pem                # Clave privada
 │       └── cert.pem                   # Certificado (copia de fullchain.pem)
+├── ssl-certs/
+│   └── mariadb/                       # Certificados SSL para MariaDB
+│       ├── server-cert.pem           # Certificado del servidor DB
+│       ├── server-key.pem            # Clave privada del servidor DB
+│       └── my-ssl.cnf                # Configuración SSL de MariaDB
 └── proxy-nginx/
-    └── nginx.conf                     # Configuración que usa los certificados
+    └── nginx.conf                     # Configuración que usa los certificados web
 ```
 
 ## 🚀 Generación de Certificados
