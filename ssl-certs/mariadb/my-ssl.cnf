@@ -1,0 +1,43 @@
+[mysqld]
+# Configuración SSL para MariaDB
+ssl-ca=/etc/mysql/ssl/ca.pem
+ssl-cert=/etc/mysql/ssl/server-cert.pem
+ssl-key=/etc/mysql/ssl/server-key.pem
+
+# Habilitar SSL
+ssl=ON
+
+# Configuraciones de seguridad SSL
+tls_version=TLSv1.2,TLSv1.3
+
+# Permitir conexiones tanto SSL como no-SSL (para compatibilidad)
+# require_secure_transport=OFF
+
+# Configuraciones adicionales de MariaDB
+bind-address=0.0.0.0
+
+# Configuración de logs
+general_log=1
+general_log_file=/var/log/mysql/mysql.log
+log_error=/var/log/mysql/error.log
+
+# Configuración de innodb
+innodb_buffer_pool_size=256M
+innodb_log_file_size=64M
+innodb_flush_log_at_trx_commit=2
+
+# Configuración de caracteres
+character-set-server=utf8mb4
+collation-server=utf8mb4_unicode_ci
+
+[client]
+# Configuración SSL para clientes
+ssl-ca=/etc/mysql/ssl/ca.pem
+ssl-cert=/etc/mysql/ssl/client-cert.pem
+ssl-key=/etc/mysql/ssl/client-key.pem
+
+[mysql]
+# Configuración para el cliente mysql
+ssl-ca=/etc/mysql/ssl/ca.pem
+ssl-cert=/etc/mysql/ssl/client-cert.pem
+ssl-key=/etc/mysql/ssl/client-key.pem

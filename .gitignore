@@ -18,6 +18,23 @@ swag-config/keys/
 # --- Secretos ---
 .env
 
+# --- Backups y respaldos ---
+db.bak.*/
+nextcloud-backup/logs/
+nextcloud-backup/config/ssh-keys/
+*.sql
+*.dump
+*.backup
+*backup*/
+
+# --- Llaves SSH ---
+ssh-keys/
+*.pub
+id_rsa
+id_ed25519
+*_key
+*_key.pub
+
 # --- Otros comunes ---
 *.log
 *.tmp
