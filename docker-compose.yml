@@ -27,8 +27,8 @@ services:
     image: mariadb:10.11
     container_name: nextcloud-db
     restart: unless-stopped
-    # Configuración optimizada para Nextcloud
-    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
+    # Configuración optimizada para Nextcloud con SSL
+    command: --defaults-extra-file=/etc/mysql/conf.d/my-ssl.cnf --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     env_file:
       - .env
     environment:
@@ -39,12 +39,16 @@ services:
       - TZ=${TZ}
     volumes:
       - ./db:/var/lib/mysql
+      - ./ssl-certs/mariadb:/etc/mysql/ssl:ro
+      - ./ssl-certs/mariadb/my-ssl.cnf:/etc/mysql/conf.d/my-ssl.cnf:ro
     healthcheck:
       test: ["CMD-SHELL", "mariadb-admin ping -p${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
     dns:
+      - 8.8.8.8      # DNS público para construcción de imágenes
+      - 8.8.4.4      # DNS público secundario
       - 172.18.0.30  # CoreDNS para resolución de nombres internos
     networks:
       proxy_net_next:
@@ -283,6 +287,94 @@ services:
         ipv4_address: 172.18.0.43     # IP secundaria para acceso controlado a servicios
 
   # ==============================
+  # BACKUP SERVICES - Respaldo Automático
+  # ==============================
+  # Servicio de backup automático con conexión encriptada
+  # - Backup de base de datos MySQL/MariaDB
+  # - Sincronización de archivos via RSYNC over SSH
+  # - Programación automática con cron jobs
+  # - Retención configurable de backups
+  # ==============================
+  
+  # NEXTCLOUD BACKUP: Servicio automatizado de respaldos
+  nextcloud-backup:
+    build:
+      context: ./nextcloud-backup
+      dockerfile: Dockerfile
+    container_name: nextcloud-backup
+    restart: unless-stopped
+    env_file:
+      - .env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
+    environment:
+      # Configuración de base de datos (usando variables existentes del .env)
+      - BACKUP_DB_HOST=db
+      - BACKUP_DB_PORT=3306
+      - BACKUP_DB_NAME=${MYSQL_DATABASE}
+      - BACKUP_DB_USER=${MYSQL_USER}
+      - BACKUP_DB_PASSWORD=${MYSQL_PASSWORD}
+      - BACKUP_DB_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      
+      # Configuración de Nextcloud (usando variables existentes)
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+      # Configuración de servidor remoto (se agregarán al .env)
+      - BACKUP_REMOTE_HOST=${BACKUP_REMOTE_HOST:-backup-server.local}
+      - BACKUP_REMOTE_USER=${BACKUP_REMOTE_USER:-backup}
+      - BACKUP_REMOTE_PATH=${BACKUP_REMOTE_PATH:-/home/backup/nextcloud}
+      - BACKUP_REMOTE_PORT=${BACKUP_REMOTE_PORT:-22}
+      
+      # Configuración de backup
+      - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+      - BACKUP_COMPRESSION=${BACKUP_COMPRESSION:-true}
+      - BACKUP_VERIFY_CHECKSUMS=${BACKUP_VERIFY_CHECKSUMS:-true}
+      - BACKUP_RUN_INITIAL=${BACKUP_RUN_INITIAL:-false}
+      - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-7}
+      
+      # Configuración del sistema
+      - TZ=${TZ}
+      - PROJECT_NAME=${PROJECT_NAME}
+    volumes:
+      # Datos a respaldar (solo lectura para seguridad)
+      - ./db:/data/mysql:ro                     # Base de datos MariaDB
+      - ./nextcloud:/data/nextcloud:ro          # Aplicación Nextcloud  
+      - ./nextcloud_data:/data/nextcloud_data:ro # Datos de usuarios
+      - ./redis:/data/redis:ro                  # Cache Redis
+      
+      # Certificados SSL para conexión segura a MariaDB
+      - ./ssl-certs/mariadb:/etc/mysql/ssl:ro   # Certificados SSL de MariaDB
+      
+      # Configuración y logs del servicio de backup
+      - ./ssh-keys:/app/config/ssh-keys:ro     # Llaves SSH maestras del host
+      - ./nextcloud-backup/logs:/app/logs      # Logs del servicio
+      - ./nextcloud-backup/config:/app/config  # Configuración adicional
+      
+      # Almacenamiento local de backups (temporal)
+      - backup_storage:/backups/local
+    depends_on:
+      db:
+        condition: service_healthy
+      nextcloud:
+        condition: service_started
+    networks:
+      proxy_net_next:
+        ipv4_address: 172.18.0.50  # IP fija en red principal
+    # Puerto opcional para health check HTTP
+    # ports:
+    #   - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "/app/scripts/health-check.sh || exit 1"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+
+  # ==============================
   # CERTIFICADOS SSL (OPCIONAL)
   # ==============================
   # Generador de certificados autofirmados para desarrollo local
@@ -336,6 +428,7 @@ services:
 
 volumes:
   portainer_data:    # Volumen persistente para datos de Portainer
+  backup_storage:    # Volumen persistente para backups locales temporales
 
 # ==============================
 # REDES VIRTUALES
@@ -361,6 +454,7 @@ networks:
     # - xfce-desktop-a (172.18.0.41) : Cliente A
     # - xfce-desktop-b (172.18.0.42) : Cliente B
     # - xfce-desktop-c (172.18.0.43) : Cliente C (IP secundaria)
+    # - nextcloud-backup (172.18.0.50) : Servicio de backup automatizado
   
   # RED AISLADA: Cliente C con acceso controlado (VLSM)
   isolated_client_net:
