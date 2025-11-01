@@ -1,0 +1,46 @@
+# ===================================================================================
+# NEXTCLOUD BACKUP SERVICE - CRON CONFIGURATION
+# ===================================================================================
+# 
+# Programación de tareas automatizadas para el servicio de backup
+# Formato: minuto hora día mes día_semana comando
+# 
+# TAREAS CONFIGURADAS:
+# - Backup completo: Diario a las 2:00 AM
+# - Backup incremental: Cada 6 horas (6:00, 12:00, 18:00, 00:00)
+# - Limpieza de logs: Semanal los domingos a las 3:00 AM
+# - Health check: Cada hora
+# ===================================================================================
+
+# Backup completo diario (2:00 AM)
+# Incluye base de datos y sincronización completa de archivos
+0 2 * * * /app/scripts/backup-full.sh >> /app/logs/backup.log 2>&1
+
+# Backup incremental cada 6 horas
+# Solo sincroniza archivos modificados (eficiente para cambios frecuentes)
+0 */6 * * * /app/scripts/backup-incremental.sh >> /app/logs/backup.log 2>&1
+
+# Limpieza de logs semanalmente (domingos 3:00 AM)
+# Elimina logs antiguos según configuración de retención
+0 3 * * 0 /app/scripts/cleanup-logs.sh >> /app/logs/backup.log 2>&1
+
+# Health check cada hora
+# Verifica estado del servicio y conectividad
+0 * * * * /app/scripts/health-check.sh >> /app/logs/health.log 2>&1
+
+# ===================================================================================
+# PERSONALIZACIÓN DE HORARIOS
+# ===================================================================================
+# 
+# Para modificar los horarios, edita las líneas anteriores siguiendo el formato:
+# 
+# Minuto (0-59) Hora (0-23) Día del mes (1-31) Mes (1-12) Día de la semana (0-7)
+# 
+# Ejemplos:
+# - Cada 4 horas: 0 */4 * * *
+# - Cada día a las 23:30: 30 23 * * *
+# - Solo días laborables: 0 2 * * 1-5
+# - Primer día de cada mes: 0 1 1 * *
+# 
+# NOTA: Después de modificar este archivo, reinicia el contenedor para aplicar cambios
+# ===================================================================================

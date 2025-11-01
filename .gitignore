@@ -25,7 +25,6 @@ nextcloud-backup/config/ssh-keys/
 *.sql
 *.dump
 *.backup
-*backup*/
 
 # --- Llaves SSH ---
 ssh-keys/
